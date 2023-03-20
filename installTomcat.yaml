@@ -1,0 +1,99 @@
+---
+- name: Installing Tomcat
+  hosts: all
+  become: true
+  vars:
+    tomcat_dl_url: https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.73/bin/apache-tomcat-9.0.73.tar.gz
+  tasks:
+    - name: Install java jdk
+      yum:
+        name: java-17-openjdk-devel
+        state: present
+    - name: Validate if java is available 
+      shell: 
+        "javac -version"
+      register: result
+    - name: Print java validate
+      debug:
+        var: result.stdout
+    - name: Add tomcat user
+      user:
+        name: tomcat
+        shell: /sbin/nologin
+    - name: Fetching tomcat installer
+      get_url:
+        url: "{{tomcat_dl_url}}"
+        dest: /tmp/
+    - name: Copy archive to /opt/
+      copy:
+        src: /tmp/apache-tomcat-9.0.73.tar.gz
+        dest: /opt/
+        remote_src: yes
+    - name: Extracting archive to /opt/
+      unarchive:
+        src: /opt/apache-tomcat-9.0.73.tar.gz
+        dest: /opt/
+        remote_src: yes
+    - name: Change file ownership, group
+      file:
+        path: /opt/apache-tomcat-9.0.73
+        owner: tomcat
+        group: tomcat
+        recurse: yes
+        state: directory
+    - name: Creating unit tomcat.service
+      file:
+        path: /usr/lib/systemd/system/tomcat.service
+        state:  touch
+    - name: Editing unit file tomcat.service
+      blockinfile:
+        dest: /usr/lib/systemd/system/tomcat.service
+        insertafter:
+        block: |
+          [Unit]
+          Description=Apache Tomcat Web Application
+          After=syslog.target network.target
+          [Service]
+          User=tomcat
+          Group=tomcat
+          Type=oneshot
+          PIDFile=/opt/apache-tomcat-9.0.73/tomcat.pid
+          RemainAfterExit = yes
+          ExecStart=/opt/apache-tomcat-9.0.73/bin/startup.sh
+          ExecStop=/opt/apache-tomcat-9.0.73/bin/shutdown.sh
+          ExecReStart=/opt/apache-tomcat-9.0.73/bin/shutdown.sh;/opt/apache-tomcat-9.0.73/bin/startup.sh
+          [Install]
+          WantedBy=multi-user.target
+    - name: Allow Access to manager app
+      shell: |
+        sed -i '20 a\<!--' /opt/apache-tomcat-9.0.73/webapps/manager/META-INF/context.xml
+        sed -i '23 a\-->' /opt/apache-tomcat-9.0.73/webapps/manager/META-INF/context.xml
+    - name: Allow access to host-manager
+      shell: |
+        sed -i '20 a\<!--' /opt/apache-tomcat-9.0.73/webapps/host-manager/META-INF/context.xml
+        sed -i '23 a\-->' /opt/apache-tomcat-9.0.73/webapps/host-manager/META-INF/context.xml
+    - name: Changing Port to 9090
+      shell: |
+        sed -i '69s/8080/9090/'/opt/apache-tomcat-9.0.73/conf/server.xml
+    - name: Creating setenv.sh
+      file:
+        path: /opt/apache-tomcat-9.0.73/bin/setenv.sh
+        state: touch
+        owner: tomcat
+        group: tomcat
+        mode: 0755
+    - name: Adding tuning parameters to setenv.sh
+      blockinfile:
+        dest: /opt/apache-tomcat-9.0.73/bin/setenv.sh
+        insertafter:
+        block: |
+          export CATALINA_OPTS="$CATALINA_OPTS -Xms512m"
+          export CATALINA_OPTS="$CATALINA_OPTS -Xmx8192m"
+          export CATALINA_OPTS="$CATALINA_OPTS -XX:MaxMetaspaceSize=256m"
+    - name: Start / Enable tomcat
+      systemd:
+        name: tomcat.service
+        state: started
+        daemon_reload: yes
+        enabled: true
+...
