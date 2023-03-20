@@ -74,7 +74,7 @@
         sed -i '23 a\-->' /opt/apache-tomcat-9.0.73/webapps/host-manager/META-INF/context.xml
     - name: Changing Port to 9090
       shell: |
-        sed -i '69s|8080|9090/'/opt/apache-tomcat-9.0.73/conf/server.xml
+        sed -i '69s|8080|9090|'/opt/apache-tomcat-9.0.73/conf/server.xml
     - name: Creating setenv.sh
       file:
         path: /opt/apache-tomcat-9.0.73/bin/setenv.sh
