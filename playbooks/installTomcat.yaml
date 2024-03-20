@@ -44,11 +44,17 @@
         group: tomcat
         recurse: yes
         state: directory
+    - name: Check if tomcat service file exists
+      stat:
+        path: /usr/lib/systemd/system/tomcat.service
+      register: tomcat_service_file
     - name: Creating unit tomcat.service
+      when: not tomcat_service_file.stat.exists
       file:
         path: /usr/lib/systemd/system/tomcat.service
         state:  touch
     - name: Editing unit file tomcat.service
+      when: not tomcat_service_file.stat.exists
       lineinfile:
        path: /usr/lib/systemd/system/tomcat.service
        insertafter: '^# After='
