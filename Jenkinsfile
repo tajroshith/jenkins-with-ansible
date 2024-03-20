@@ -1,0 +1,110 @@
+---
+- name: Installing Tomcat
+  hosts: all
+  become: true
+  vars:
+    tomcat_version: "9.0.87"
+    tomcat_dl_url: "https://dlcdn.apache.org/tomcat/tomcat-9/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
+    tomcat_dir: "apache-tomcat-{{ tomcat_version }}"
+    user_roles: <user username="taj" password="1234" roles="manager-gui,admin-gui,manager-script"/>
+  tasks:
+    - name: Install java jdk
+      yum:
+        name: java-17-openjdk-devel
+        state: present
+    - name: Validate if java is available 
+      shell: 
+        "javac -version"
+      register: result
+    - name: Print java validate
+      debug:
+        var: result.stdout
+    - name: Add tomcat user
+      user:
+        name: tomcat
+        shell: /sbin/nologin
+    - name: Fetching tomcat installer
+      get_url:
+        url: "{{ tomcat_dl_url }}"
+        dest: /tmp/
+    - name: Copy archive to /opt/
+      copy:
+        src: "/tmp/{{ tomcat_dir }}.tar.gz"
+        dest: /opt/
+        remote_src: yes
+    - name: Extracting archive to /opt/
+      unarchive:
+        src: "/opt/{{ tomcat_dir }}.tar.gz"
+        dest: /opt/
+        remote_src: yes
+    - name: Change file ownership, group
+      file:
+        path: "/opt/{{ tomcat_dir }}"
+        owner: tomcat
+        group: tomcat
+        recurse: yes
+        state: directory
+    - name: Creating unit tomcat.service
+      file:
+        path: /usr/lib/systemd/system/tomcat.service
+        state:  touch
+    - name: Editing unit file tomcat.service
+      lineinfile:
+       path: /usr/lib/systemd/system/tomcat.service
+       insertafter: '^# After='
+       line: |
+        [Unit]
+        Description=Apache Tomcat Web Application
+        After=syslog.target network.target
+  
+        [Service]
+        User=tomcat
+        Group=tomcat
+        Type=forking
+        Environment=JAVA_HOME=/usr/lib/jvm/jre
+        Environment=CATALINA_PID=/opt/{{ tomcat_dir }}/temp/tomcat.pid
+        Environment=CATALINA_HOME=/opt/{{ tomcat_dir }}
+        Environment=CATALINA_BASE=/opt/{{ tomcat_dir }}
+        RemainAfterExit=yes
+        ExecStart=/opt/{{ tomcat_dir }}/bin/startup.sh
+        ExecStop=/opt/{{ tomcat_dir }}/bin/shutdown.sh
+        ExecReStart=/opt/{{ tomcat_dir }}/bin/shutdown.sh;/opt/{{ tomcat_dir }}/bin/startup.sh
+  
+        [Install]
+        WantedBy=multi-user.target
+    - name: Allow Access to manager app
+      shell: |
+        sed -i '20 a\<!--' /opt/{{ tomcat_dir }}/webapps/manager/META-INF/context.xml
+        sed -i '23 a\-->' /opt/{{ tomcat_dir }}/webapps/manager/META-INF/context.xml
+    - name: Allow access to host-manager
+      shell: |
+        sed -i '20 a\<!--' /opt/{{ tomcat_dir }}/webapps/host-manager/META-INF/context.xml
+        sed -i '23 a\-->' /opt/{{ tomcat_dir }}/webapps/host-manager/META-INF/context.xml
+    - name: Editing tomcat-users.xml
+      shell: |
+        sed -i '55 a\{{ user_roles }}' /opt/{{ tomcat_dir }}/conf/tomcat-users.xml
+    - name: Changing Port to 9090
+      shell: |
+        sed -i '69s/8080/9090/' /opt/{{ tomcat_dir }}/conf/server.xml
+    - name: Creating setenv.sh
+      file:
+        path: /opt/{{ tomcat_dir }}/bin/setenv.sh
+        state: touch
+        owner: tomcat
+        group: tomcat
+        mode: 0755
+    - name: Adding tuning parameters to setenv.sh
+      blockinfile:
+        dest: /opt/{{ tomcat_dir }}/bin/setenv.sh
+        insertafter: EOF
+        block: |
+          export CATALINA_OPTS="$CATALINA_OPTS -Xms512m"
+          export CATALINA_OPTS="$CATALINA_OPTS -Xmx8192m"
+          export CATALINA_OPTS="$CATALINA_OPTS -XX:MaxMetaspaceSize=256m"
+    - name: Start / Enable tomcat
+      systemd:
+        name: tomcat.service
+        state: started
+        daemon_reload: yes
+        enabled: true
+...
