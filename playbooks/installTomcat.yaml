@@ -3,7 +3,7 @@
   hosts: all
   become: true
   vars:
-    tomcat_version: "9.0.87"
+    tomcat_version: "9.0.89"
     tomcat_dl_url: "https://dlcdn.apache.org/tomcat/tomcat-9/v{{ tomcat_version }}/bin/apache-tomcat-{{ tomcat_version }}.tar.gz"
     tomcat_dir: "apache-tomcat-{{ tomcat_version }}"
     user_roles: <user username="taj" password="1234" roles="manager-gui,admin-gui,manager-script"/>
