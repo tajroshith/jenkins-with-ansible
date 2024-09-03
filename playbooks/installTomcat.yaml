@@ -1,6 +1,6 @@
 ---
 - name: Installing Tomcat
-  hosts: all
+  hosts: tomcatservers
   become: true
   vars:
     tomcat_version: "9.0.93"
