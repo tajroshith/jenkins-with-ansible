@@ -91,7 +91,7 @@
         sed -i '55 a\{{ user_roles }}' /opt/{{ tomcat_dir }}/conf/tomcat-users.xml
     - name: Changing Port to 9090
       shell: |
-        sed -i '69s/8080/9090/' /opt/{{ tomcat_dir }}/conf/server.xml
+        sed -i '71s/8080/9090/' /opt/{{ tomcat_dir }}/conf/server.xml
     - name: Creating setenv.sh
       file:
         path: /opt/{{ tomcat_dir }}/bin/setenv.sh
