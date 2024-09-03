@@ -1,11 +1,11 @@
 pipeline {
     
 agent {
-label 'jenkins-ansible'
+label 'node1'
 }
 
 environment{
-AWS_EC2_PRIVATEKEY=credentials('EC2-Instance-Private-Key-File')
+AWS_EC2_PRIVATEKEY=credentials('EC2-Instance-Credentials')
 }
 
 options {
@@ -15,7 +15,7 @@ options {
 
     
 parameters {
-  choice choices: ['development', 'staging', 'master'], description: 'Select the Branch Name', name: 'BranchName'
+  choice choices: ['master', 'staging', 'development'], description: 'Select the Branch Name', name: 'BranchName'
 }
     
 stages{
