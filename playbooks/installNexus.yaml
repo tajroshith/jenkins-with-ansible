@@ -1,0 +1,125 @@
+---
+- name: Installing Nexus Repository
+  hosts: all
+  become: true
+  vars:
+    nexus_version: "3.81.0-08"
+    nexus_dl_url: "https://download.sonatype.com/nexus/3/nexus-{{ nexus_version }}-linux-x86_64.tar.gz"
+  tasks:
+    - name: Install java-17 openjdk
+      apt:
+        name: openjdk-17-jdk
+        state: present
+        update_cache: yes
+
+    - name: Validate if java is available 
+      shell: "java -version 2>&1"
+      register: result
+
+    - name: Print java validate
+      debug:
+        var: result.stdout
+
+    - name: Fetching nexus installer
+      get_url:
+        url: "{{ nexus_dl_url }}"
+        dest: /tmp/
+
+    - name: Extracting archive
+      unarchive:
+        src: "/tmp/nexus-{{ nexus_version }}-linux-x86_64.tar.gz"
+        dest: /opt/
+        remote_src: true
+
+    - name: Rename nexus directory
+      shell: "mv /opt/nexus-{{ nexus_version }} /opt/nexus"
+
+    - name: Add nexus user
+      user:
+        name: nexus
+        create_home: true
+        shell: /bin/bash
+        comment: "Nexus Management Account"
+        expires: -1
+        password: "{{ 'nexus' | password_hash('sha512','A512') }}"
+
+    - name: Setup sudo access for nexus user
+      copy:
+        dest: /etc/sudoers.d/nexus
+        content: 'nexus ALL=(ALL) NOPASSWD: ALL'
+        validate: /usr/sbin/visudo -cf %s
+
+    - name: Change owner and group of /opt/nexus/
+      file:
+        path: /opt/nexus/
+        owner: nexus
+        group: nexus
+        recurse: yes
+        state: directory
+
+    - name: Change owner and group of /opt/sonatype-work
+      file:
+        path: /opt/sonatype-work/
+        group: nexus
+        owner: nexus
+        recurse: yes
+        state: directory
+
+    - name: Set the run_as_user parameter in nexus
+      lineinfile:
+        dest: /opt/nexus/bin/nexus
+        regexp: "run_as_user="
+        line: "run_as_user=nexus"
+        backrefs: true
+
+    - name: Create soft link for nexus
+      file:
+        src: /opt/nexus/bin/nexus
+        dest: /etc/init.d/nexus
+        state: link
+
+    - name: Creating unit nexus.service
+      file:
+        path: /etc/systemd/system/nexus.service
+        state: touch
+
+    - name: Editing unit file nexus.service
+      blockinfile:
+        dest: /etc/systemd/system/nexus.service
+        insertafter: '^# After='
+        block: |
+            [Unit]
+            Description=nexus service
+            After=network.target
+            [Service]
+            Type=forking
+            LimitNOFILE=65536
+            ExecStart=/etc/init.d/nexus start
+            ExecStop=/etc/init.d/nexus stop 
+            User=nexus
+            Group=nexus
+            Restart=on-abort
+            TimeoutSec=600
+            [Install]
+            WantedBy=multi-user.target
+
+    - name: Start / Enable nexus service
+      systemd:
+        name: nexus
+        state: started
+        daemon_reload: yes
+        enabled: true
+
+    - name: Pause
+      pause:
+        seconds: 50
+
+    - name: Init password jenkins
+      shell: cat /opt/sonatype-work/nexus3/admin.password
+      changed_when: false
+      register: result
+
+    - name: Print init password nexus
+      debug:
+        var: result.stdout
+...
