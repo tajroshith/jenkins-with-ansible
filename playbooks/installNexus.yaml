@@ -1,6 +1,6 @@
 ---
 - name: Installing Nexus Repository
-  hosts: all
+  hosts: nexus
   become: true
   vars:
     nexus_version: "3.81.0-08"
